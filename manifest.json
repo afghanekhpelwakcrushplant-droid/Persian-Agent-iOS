@@ -1,0 +1,10 @@
+{
+  "name": "Persian Agent",
+  "short_name": "Persian Agent",
+  "start_url": ".",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "fa",
+  "theme_color": "#111827",
+  "background_color": "#f3f4f6"
+}
