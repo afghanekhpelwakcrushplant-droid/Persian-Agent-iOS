@@ -31,3 +31,5 @@ jobs:
         with:
           name: persian-agent-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+# build trigger
