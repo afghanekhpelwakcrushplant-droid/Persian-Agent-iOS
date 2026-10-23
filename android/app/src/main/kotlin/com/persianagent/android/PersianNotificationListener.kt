@@ -74,12 +74,13 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
 
         fun replyToLatest(text: String): Boolean {
             val target = latestReply ?: return false
+            val service = activeListener ?: return false
             return try {
                 val intent = Intent()
                 val results = Bundle()
                 target.remoteInputs.forEach { results.putCharSequence(it.resultKey, text) }
                 RemoteInput.addResultsToIntent(target.remoteInputs, intent, results)
-                target.pendingIntent.send(activeListener, 0, intent)
+                target.pendingIntent.send(service, 0, intent)
                 latestReply = null
                 true
             } catch (_: Exception) {
