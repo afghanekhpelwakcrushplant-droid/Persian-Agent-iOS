@@ -3,6 +3,9 @@ package com.persianagent.android
 import android.app.Notification
 import android.content.Context
 import android.os.Bundle
+import android.content.Intent
+import android.app.PendingIntent
+import android.app.RemoteInput
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
@@ -15,6 +18,7 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
 
     override fun onCreate() {
         super.onCreate()
+        activeListener = this
         tts = TextToSpeech(applicationContext, this)
     }
 
@@ -41,16 +45,48 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
         }
         val message = if (title.isBlank()) body else "$title می‌گوید: $body"
         tts?.speak(message, TextToSpeech.QUEUE_ADD, Bundle(), key.take(100))
+
+        val replyAction = sbn.notification.actions
+            ?.firstOrNull { action -> !action.remoteInputs.isNullOrEmpty() }
+        if (replyAction != null) {
+            synchronized(recent) {
+                latestReply = ReplyTarget(replyAction.actionIntent, replyAction.remoteInputs)
+            }
+        }
     }
 
     override fun onDestroy() {
         tts?.stop()
         tts?.shutdown()
         tts = null
+        if (activeListener === this) activeListener = null
         super.onDestroy()
     }
 
+    private data class ReplyTarget(
+        val pendingIntent: PendingIntent,
+        val remoteInputs: Array<RemoteInput>
+    )
+
     companion object {
+        @Volatile private var activeListener: PersianNotificationListener? = null
+        @Volatile private var latestReply: ReplyTarget? = null
+
+        fun replyToLatest(text: String): Boolean {
+            val target = latestReply ?: return false
+            return try {
+                val intent = Intent()
+                val results = Bundle()
+                target.remoteInputs.forEach { results.putCharSequence(it.resultKey, text) }
+                RemoteInput.addResultsToIntent(target.remoteInputs, intent, results)
+                target.pendingIntent.send(activeListener, 0, intent)
+                latestReply = null
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
+
         private val MESSAGE_PACKAGES = setOf(
             "com.whatsapp",
             "com.whatsapp.w4b",
