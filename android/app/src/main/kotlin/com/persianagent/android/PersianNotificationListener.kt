@@ -1,6 +1,7 @@
 package com.persianagent.android
 
 import android.app.Notification
+import android.content.Context
 import android.content.Intent
 import android.app.PendingIntent
 import android.app.RemoteInput
@@ -56,7 +57,7 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
             }
         }
 
-        if (!ready) return
+        if (!ready || !isReadingEnabled(this)) return
         val extras = sbn.notification.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
         val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
@@ -87,6 +88,16 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
 
     companion object {
         private val replyLock = Any()
+        private const val PREFS = "notification_preferences"
+        private const val KEY_READ_ALOUD = "read_aloud_enabled"
+
+        fun isReadingEnabled(context: Context): Boolean =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_READ_ALOUD, false)
+
+        fun setReadingEnabled(context: Context, enabled: Boolean) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_READ_ALOUD, enabled).apply()
+        }
         @Volatile private var activeListener: PersianNotificationListener? = null
         @Volatile private var latestReply: ReplyTarget? = null
 
