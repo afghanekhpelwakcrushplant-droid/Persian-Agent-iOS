@@ -1,11 +1,10 @@
 package com.persianagent.android
 
 import android.app.Notification
-import android.content.Context
-import android.os.Bundle
 import android.content.Intent
 import android.app.PendingIntent
 import android.app.RemoteInput
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
@@ -13,25 +12,51 @@ import java.util.Locale
 
 class PersianNotificationListener : NotificationListenerService(), TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
-    private var ready = false
+    @Volatile private var ready = false
     private val recent = LinkedHashSet<String>()
 
     override fun onCreate() {
         super.onCreate()
-        activeListener = this
         tts = TextToSpeech(applicationContext, this)
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        activeListener = this
+    }
+
+    override fun onListenerDisconnected() {
+        if (activeListener === this) activeListener = null
+        super.onListenerDisconnected()
     }
 
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
-            tts?.language = Locale("fa", "IR")
-            tts?.setSpeechRate(0.95f)
+            val result = tts?.setLanguage(Locale("fa", "IR"))
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                ready = false
+            } else {
+                tts?.setSpeechRate(0.95f)
+            }
         }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!ready || sbn.packageName !in MESSAGE_PACKAGES) return
+        if (sbn.packageName !in MESSAGE_PACKAGES) return
+
+        // Capture direct-reply capability independently of TTS readiness or message preview.
+        val replyAction = sbn.notification.actions
+            ?.firstOrNull { action ->
+                action.remoteInputs?.any { it.allowFreeFormInput } == true
+            }
+        if (replyAction != null) {
+            synchronized(replyLock) {
+                latestReply = ReplyTarget(replyAction.actionIntent, replyAction.remoteInputs)
+            }
+        }
+
+        if (!ready) return
         val extras = sbn.notification.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
         val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
@@ -45,14 +70,6 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
         }
         val message = if (title.isBlank()) body else "$title می‌گوید: $body"
         tts?.speak(message, TextToSpeech.QUEUE_ADD, Bundle(), key.take(100))
-
-        val replyAction = sbn.notification.actions
-            ?.firstOrNull { action -> !action.remoteInputs.isNullOrEmpty() }
-        if (replyAction != null) {
-            synchronized(recent) {
-                latestReply = ReplyTarget(replyAction.actionIntent, replyAction.remoteInputs)
-            }
-        }
     }
 
     override fun onDestroy() {
@@ -69,19 +86,22 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
     )
 
     companion object {
+        private val replyLock = Any()
         @Volatile private var activeListener: PersianNotificationListener? = null
         @Volatile private var latestReply: ReplyTarget? = null
 
         fun replyToLatest(text: String): Boolean {
-            val target = latestReply ?: return false
             val service = activeListener ?: return false
+            val target = synchronized(replyLock) { latestReply } ?: return false
             return try {
                 val intent = Intent()
                 val results = Bundle()
                 target.remoteInputs.forEach { results.putCharSequence(it.resultKey, text) }
                 RemoteInput.addResultsToIntent(target.remoteInputs, intent, results)
                 target.pendingIntent.send(service, 0, intent)
-                latestReply = null
+                synchronized(replyLock) {
+                    if (latestReply === target) latestReply = null
+                }
                 true
             } catch (_: Exception) {
                 false
