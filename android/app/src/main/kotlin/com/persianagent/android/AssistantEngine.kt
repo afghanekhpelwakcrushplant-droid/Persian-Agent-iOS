@@ -58,9 +58,9 @@ class AssistantEngine(private val context: Context) {
             return "آماده تماس با $number هستم. برای تأیید بگو «تأیید می‌کنم»."
         }
         val name = n.replace(
-            Regex("""(^|\\s)(تماس|زنگ|بگیر|بزن|با|به|برای|شماره|تلفن)(?=\\s|$)"""),
+            Regex("""(^|\s)(تماس|زنگ|بگیر|بزن|با|به|برای|شماره|تلفن)(?=\s|$)"""),
             " "
-        ).replace(Regex("""\\s+"""), " ").trim()
+        ).replace(Regex("""\s+"""), " ").trim()
         if (name.isBlank()) return "نام مخاطب یا شمارهٔ تماس را بگو."
         val contactNumber = findContactNumber(name)
             ?: return "مخاطب «$name» را پیدا نکردم؛ نام را بررسی کن یا شماره را بگو."
