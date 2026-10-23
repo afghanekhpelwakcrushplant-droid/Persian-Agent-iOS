@@ -13,15 +13,20 @@ import java.util.Date
 import java.util.Locale
 
 class AssistantEngine(private val context: Context) {
-    private var pendingCall: (() -> Unit)? = null
+    private var pendingCall: (() -> String)? = null
 
     fun handle(command: String): String {
         val n = normalize(command)
         if (isConfirmation(n)) {
             val action = pendingCall ?: return "عملی برای تأیید ندارم."
             pendingCall = null
-            action.invoke()
-            return "انجام شد."
+            return try {
+                action.invoke()
+            } catch (_: SecurityException) {
+                "تماس انجام نشد؛ مجوز تماس را در تنظیمات برنامه بررسی کنید."
+            } catch (_: Exception) {
+                "تماس شروع نشد؛ شماره یا برنامهٔ تماس را بررسی کنید."
+            }
         }
         if (isCancellation(n)) {
             pendingCall = null
@@ -60,9 +65,21 @@ class AssistantEngine(private val context: Context) {
         return "برای تماس با $name آماده‌ام. برای تأیید بگو «تأیید می‌کنم»."
     }
 
-    private fun makeCall(number: String) {
-        if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) return
-        context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    private fun makeCall(number: String): String {
+        if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            return "مجوز تماس داده نشده است؛ از تنظیمات برنامه مجوز تماس را فعال کنید."
+        }
+        return try {
+            context.startActivity(
+                Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            "تماس با $number شروع شد."
+        } catch (_: SecurityException) {
+            "تماس انجام نشد؛ مجوز تماس را در تنظیمات برنامه بررسی کنید."
+        } catch (_: Exception) {
+            "برنامهٔ تماس در این دستگاه در دسترس نیست."
+        }
     }
 
     private fun prepareSms(n: String): String {
@@ -80,7 +97,9 @@ class AssistantEngine(private val context: Context) {
     private fun createReminder(n: String): String {
         val m = Regex("""(?:در\s*)?(\d+)\s*(دقیقه|ساعت)""").find(n)
             ?: return "زمان یادآوری را مثلاً «در ۱۰ دقیقه» یا «در ۲ ساعت» بگو."
-        val value = m.groupValues[1].toLong()
+        val value = m.groupValues[1].toLongOrNull()
+            ?: return "زمان یادآوری معتبر نیست."
+        if (value <= 0 || value > 525600) return "زمان یادآوری باید بین ۱ دقیقه تا یک سال باشد."
         val minutes = if (m.groupValues[2] == "ساعت") value * 60 else value
         val title = n.replace(m.value, "")
             .replace("یادم بنداز", "").replace("یادآوری", "").replace("یادآور", "")
