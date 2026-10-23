@@ -5,6 +5,8 @@ import android.app.Activity
 import android.app.role.RoleManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.content.Intent
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -92,6 +94,7 @@ class MainActivity : Activity() {
         root.addView(title, LinearLayout.LayoutParams(-1, -2))
         root.addView(subtitle, LinearLayout.LayoutParams(-1, -2))
         root.addView(assistantButton, LinearLayout.LayoutParams(-1, -2))
+        root.addView(messagesButton, LinearLayout.LayoutParams(-1, -2))
         root.addView(input, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(run, LinearLayout.LayoutParams(-1, -2))
         root.addView(listen, LinearLayout.LayoutParams(-1, -2))
