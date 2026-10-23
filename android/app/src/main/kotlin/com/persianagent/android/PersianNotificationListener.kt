@@ -51,9 +51,10 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
             ?.firstOrNull { action ->
                 action.remoteInputs?.any { it.allowFreeFormInput } == true
             }
-        if (replyAction != null) {
-            synchronized(replyLock) {
-                latestReply = ReplyTarget(replyAction.actionIntent, replyAction.remoteInputs)
+        synchronized(replyLock) {
+            // Never leave a previous sender's reply action active when a newer notification arrives.
+            latestReply = replyAction?.let {
+                ReplyTarget(it.actionIntent, it.remoteInputs, sbn.key)
             }
         }
 
@@ -83,7 +84,8 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
 
     private data class ReplyTarget(
         val pendingIntent: PendingIntent,
-        val remoteInputs: Array<RemoteInput>
+        val remoteInputs: Array<RemoteInput>,
+        val notificationKey: String
     )
 
     companion object {
@@ -102,6 +104,7 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
         @Volatile private var latestReply: ReplyTarget? = null
 
         fun replyToLatest(text: String): Boolean {
+            if (text.isBlank()) return false
             val service = activeListener ?: return false
             val target = synchronized(replyLock) { latestReply } ?: return false
             return try {
