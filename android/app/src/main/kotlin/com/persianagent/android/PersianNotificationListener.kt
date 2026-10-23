@@ -28,7 +28,15 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
 
     override fun onListenerDisconnected() {
         if (activeListener === this) activeListener = null
+        synchronized(replyLock) { latestReply = null }
         super.onListenerDisconnected()
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        synchronized(replyLock) {
+            if (latestReply?.notificationKey == sbn.key) latestReply = null
+        }
+        super.onNotificationRemoved(sbn)
     }
 
     override fun onInit(status: Int) {
