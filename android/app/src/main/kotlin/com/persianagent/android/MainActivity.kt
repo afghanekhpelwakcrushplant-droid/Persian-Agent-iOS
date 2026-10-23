@@ -61,6 +61,13 @@ class MainActivity : Activity() {
             setOnClickListener { requestAssistantRole() }
         }
 
+        val messagesButton = Button(this).apply {
+            text = "فعال‌سازی خواندن صوتی پیام‌ها"
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+        }
+
         input = EditText(this).apply {
             hint = "مثلاً: به علی زنگ بزن"
             textSize = 18f
