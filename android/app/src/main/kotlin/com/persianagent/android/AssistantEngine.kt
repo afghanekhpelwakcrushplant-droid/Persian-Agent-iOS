@@ -99,8 +99,10 @@ class AssistantEngine(private val context: Context) {
             ?: return "زمان یادآوری را مثلاً «در ۱۰ دقیقه» یا «در ۲ ساعت» بگو."
         val value = m.groupValues[1].toLongOrNull()
             ?: return "زمان یادآوری معتبر نیست."
-        if (value <= 0 || value > 525600) return "زمان یادآوری باید بین ۱ دقیقه تا یک سال باشد."
-        val minutes = if (m.groupValues[2] == "ساعت") value * 60 else value
+        val isHours = m.groupValues[2] == "ساعت"
+        val maxValue = if (isHours) 8760L else 525600L
+        if (value <= 0 || value > maxValue) return "زمان یادآوری باید بین ۱ دقیقه تا یک سال باشد."
+        val minutes = if (isHours) value * 60 else value
         val title = n.replace(m.value, "")
             .replace("یادم بنداز", "").replace("یادآوری", "").replace("یادآور", "")
             .trim().ifBlank { "یادآوری" }
