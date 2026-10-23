@@ -62,9 +62,27 @@ class MainActivity : Activity() {
         }
 
         val messagesButton = Button(this).apply {
-            text = "فعال‌سازی خواندن صوتی پیام‌ها"
+            text = "تنظیم دسترسی اعلان‌ها"
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+        }
+
+        val readToggleButton = Button(this).apply {
+            text = if (PersianNotificationListener.isReadingEnabled(this@MainActivity))
+                "خواندن صوتی پیام‌ها: روشن" else "خواندن صوتی پیام‌ها: خاموش"
+            setOnClickListener {
+                val enabled = !PersianNotificationListener.isReadingEnabled(this@MainActivity)
+                PersianNotificationListener.setReadingEnabled(this@MainActivity, enabled)
+                text = if (enabled) "خواندن صوتی پیام‌ها: روشن" else "خواندن صوتی پیام‌ها: خاموش"
+                status.text = if (enabled) {
+                    val listeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners").orEmpty()
+                    if (listeners.contains(packageName)) "خواندن صوتی پیام‌ها فعال شد."
+                    else {
+                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        "دسترسی اعلان‌ها را برای دستیار فارسی روشن کنید."
+                    }
+                } else "خواندن صوتی پیام‌ها خاموش شد."
             }
         }
 
@@ -102,6 +120,7 @@ class MainActivity : Activity() {
         root.addView(subtitle, LinearLayout.LayoutParams(-1, -2))
         root.addView(assistantButton, LinearLayout.LayoutParams(-1, -2))
         root.addView(messagesButton, LinearLayout.LayoutParams(-1, -2))
+        root.addView(readToggleButton, LinearLayout.LayoutParams(-1, -2))
         root.addView(input, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(run, LinearLayout.LayoutParams(-1, -2))
         root.addView(listen, LinearLayout.LayoutParams(-1, -2))
