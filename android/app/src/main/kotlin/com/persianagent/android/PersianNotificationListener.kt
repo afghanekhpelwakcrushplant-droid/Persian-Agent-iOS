@@ -107,7 +107,10 @@ class PersianNotificationListener : NotificationListenerService(), TextToSpeech.
         fun setReadingEnabled(context: Context, enabled: Boolean) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putBoolean(KEY_READ_ALOUD, enabled).apply()
+            // Turning privacy-sensitive readout off must also stop any queued speech immediately.
+            if (!enabled) activeListener?.tts?.stop()
         }
+
         @Volatile private var activeListener: PersianNotificationListener? = null
         @Volatile private var latestReply: ReplyTarget? = null
 

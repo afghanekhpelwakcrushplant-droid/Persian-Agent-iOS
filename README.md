@@ -1,17 +1,17 @@
-# Persian Agent iOS
+# Persian Agent — Android assistant
 
-A Persian-first, voice-oriented AI assistant designed for iPhone.
+A Persian-first Android voice assistant with a lightweight, local command engine.
 
-## Goal
-- Persian voice-first interaction
-- Agent planning and tool execution
-- Persistent reminders and follow-up
-- Web research
-- File and document workflows
-- iPhone Shortcuts integration
-- Extensible provider architecture
+## Android app
+The native Android app is in [android/](android/). It includes Persian speech input/output, contact calling with confirmation, SMS composer handoff, reminders, web search, app launching, bounded local memory, and opt-in reading/replying to supported message notifications.
 
-## Architecture
-Voice/Input → Agent Orchestrator → Tool Router → Execution → Verification → Memory/Task State
+## Build and install
+See [Android setup and limitations](android/README.md). GitHub Actions builds a debug APK artifact; a successful CI build verifies compilation, not real-device behavior.
 
-The first version is a lightweight Progressive Web App. API keys will never be stored in this public repository.
+## Important limitations
+- The Android engine is command/rule based; a full local large language model is not bundled.
+- On-device Persian speech recognition and Persian text-to-speech depend on device/provider language support.
+- Message reading requires explicit notification access. Quick replies work only when the message app exposes a direct-reply action.
+- Always-on wake-word behavior and real-device compatibility are not guaranteed.
+
+The original lightweight web app remains at the repository root. No API keys should be committed to this public repository.

@@ -14,12 +14,18 @@ import java.util.Locale
 
 class AssistantEngine(private val context: Context) {
     private var pendingCall: (() -> String)? = null
+    private var pendingCallAtMillis = 0L
+    private val confirmationWindowMillis = 60_000L
 
     fun handle(command: String): String {
         val n = normalize(command)
         if (isConfirmation(n)) {
             val action = pendingCall ?: return "عملی برای تأیید ندارم."
-            pendingCall = null
+            if (System.currentTimeMillis() - pendingCallAtMillis > confirmationWindowMillis) {
+                clearPendingCall()
+                return "مهلت تأیید تماس تمام شد؛ اگر هنوز می‌خواهی تماس بگیری، دوباره فرمان بده."
+            }
+            clearPendingCall()
             return try {
                 action.invoke()
             } catch (_: SecurityException) {
@@ -29,9 +35,13 @@ class AssistantEngine(private val context: Context) {
             }
         }
         if (isCancellation(n)) {
-            pendingCall = null
+            clearPendingCall()
             return "لغو شد."
         }
+
+        // A pending call must not remain armed while another command is being handled.
+        clearPendingCall()
+
         if (n.startsWith("پاسخ بده ")) {
             val reply = n.removePrefix("پاسخ بده ").trim()
             if (reply.isBlank()) return "متن پاسخ را بگو."
@@ -51,10 +61,20 @@ class AssistantEngine(private val context: Context) {
         }
     }
 
+    private fun clearPendingCall() {
+        pendingCall = null
+        pendingCallAtMillis = 0L
+    }
+
+    private fun setPendingCall(action: () -> String) {
+        pendingCall = action
+        pendingCallAtMillis = System.currentTimeMillis()
+    }
+
     private fun prepareCall(n: String): String {
         val number = extractPhone(n)
         if (number != null) {
-            pendingCall = { makeCall(number) }
+            setPendingCall { makeCall(number) }
             return "آماده تماس با $number هستم. برای تأیید بگو «تأیید می‌کنم»."
         }
         val name = n.replace(
@@ -64,7 +84,7 @@ class AssistantEngine(private val context: Context) {
         if (name.isBlank()) return "نام مخاطب یا شمارهٔ تماس را بگو."
         val contactNumber = findContactNumber(name)
             ?: return "مخاطب «$name» را پیدا نکردم؛ نام را بررسی کن یا شماره را بگو."
-        pendingCall = { makeCall(contactNumber) }
+        setPendingCall { makeCall(contactNumber) }
         return "برای تماس با $name آماده‌ام. برای تأیید بگو «تأیید می‌کنم»."
     }
 
@@ -89,12 +109,16 @@ class AssistantEngine(private val context: Context) {
         val number = extractPhone(n) ?: return "برای پیام در این نسخه، شماره تلفن را داخل فرمان بگو."
         val message = n.substringAfter("پیام", "").trim()
             .replaceFirst(Regex("""^(بفرست|ارسال کن)\s*"""), "")
-        context.startActivity(Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("smsto:$number")
-            putExtra("sms_body", message)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-        return "صفحه پیام برای $number باز شد."
+        return try {
+            context.startActivity(Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("smsto:$number")
+                putExtra("sms_body", message)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            "صفحه پیام برای $number باز شد."
+        } catch (_: Exception) {
+            "برنامهٔ پیامک در این دستگاه در دسترس نیست."
+        }
     }
 
     private fun createReminder(n: String): String {
@@ -110,22 +134,30 @@ class AssistantEngine(private val context: Context) {
             .replace("یادم بنداز", "").replace("یادآوری", "").replace("یادآور", "")
             .trim().ifBlank { "یادآوری" }
 
-        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, ReminderReceiver::class.java).putExtra("text", title)
-        val pending = PendingIntent.getBroadcast(
-            context, (System.currentTimeMillis() and 0x7fffffff).toInt(), intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + minutes * 60_000L, pending)
-        return "یادآور «$title» برای $minutes دقیقه دیگر ثبت شد."
+        return try {
+            val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, ReminderReceiver::class.java).putExtra("text", title)
+            val pending = PendingIntent.getBroadcast(
+                context, (System.currentTimeMillis() and 0x7fffffff).toInt(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + minutes * 60_000L, pending)
+            "یادآور «$title» برای $minutes دقیقه دیگر ثبت شد."
+        } catch (_: Exception) {
+            "ثبت یادآور انجام نشد؛ تنظیمات اعلان‌ها و محدودیت‌های باتری را بررسی کنید."
+        }
     }
 
     private fun searchWeb(n: String): String {
         val q = n.replaceFirst(Regex("""^(جستجو|سرچ|بگرد)\s*"""), "").trim()
         if (q.isBlank()) return "موضوع جستجو را بگو."
         val url = "https://www.google.com/search?q=" + Uri.encode(q)
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        return "جستجوی «$q» را باز کردم."
+        return try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "جستجوی «$q» را باز کردم."
+        } catch (_: Exception) {
+            "مرورگر وب در این دستگاه در دسترس نیست."
+        }
     }
 
     private fun currentTime(): String =

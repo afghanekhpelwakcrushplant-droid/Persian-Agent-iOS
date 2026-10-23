@@ -12,13 +12,19 @@ class FinalAssistantEngine(context: Context) {
 
         if (n.startsWith("یادت باشه ")) {
             val value = n.removePrefix("یادت باشه ").trim()
+            if (value.isBlank()) return "متنی برای ذخیره نگفتی."
             memory.put("memory_" + System.currentTimeMillis(), value)
             return "به خاطر سپردم."
         }
 
         if (n == "چی یادت هست" || n == "یادت هست چی گفتم") {
-            val values = memory.all().values.filterIsInstance<String>().takeLast(10)
-            return if (values.isEmpty()) "چیزی در حافظه ندارم." else values.joinToString("، ")
+            val recent = memory.all().entries
+                .filter { it.key.startsWith("memory_") && it.value is String }
+                .sortedByDescending { it.key.removePrefix("memory_").toLongOrNull() ?: 0L }
+                .take(10)
+                .sortedBy { it.key.removePrefix("memory_").toLongOrNull() ?: 0L }
+                .mapNotNull { it.value as? String }
+            return if (recent.isEmpty()) "چیزی در حافظه ندارم." else recent.joinToString("، ")
         }
 
         return router.run(n)
