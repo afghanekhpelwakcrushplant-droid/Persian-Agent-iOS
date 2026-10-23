@@ -27,6 +27,15 @@ class AssistantEngine(private val context: Context) {
             pendingCall = null
             return "لغو شد."
         }
+        if (n.startsWith("پاسخ بده ")) {
+            val reply = n.removePrefix("پاسخ بده ").trim()
+            if (reply.isBlank()) return "متن پاسخ را بگو."
+            return if (PersianNotificationListener.replyToLatest(reply)) {
+                "پاسخ ارسال شد."
+            } else {
+                "پاسخ سریع برای آخرین پیام در دسترس نیست؛ اعلان پیام باید امکان پاسخ مستقیم داشته باشد."
+            }
+        }
         return when {
             n.contains("تماس") || n.contains("زنگ") -> prepareCall(n)
             n.contains("پیام") || n.contains("اس ام اس") || n.contains("اس‌ام‌اس") -> prepareSms(n)
